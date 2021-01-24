@@ -1,0 +1,10 @@
+#!/bin/bash
+
+download_repos() {
+    local org="$1"
+   
+    curl -s https://api.github.com/orgs/"$org"/repos?per_page=200 | jq -r '.[].clone_url' | xargs -n 1 git clone
+}
+
+
+download_repos "$1"

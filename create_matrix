@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Fail fast and be aware of exit codes
+set -eo pipefail
+# Check for undefined variables
+set -u
+# Used to exit upon error, avoiding cascading errors
+set -o errexit
+# Exposes unset variables
+set -o nounset
+
+delete_matrix_file () {
+    local repo_fullpath="$1"
+    
+    printf "Cleaning matrix file %s\n" "$repo_fullpath"
+    rm  -f "$repo_fullpath"
+}
+
+delete_matrix_directory () {
+    local repo_dir="$1"
+
+    printf "Cleaning matrix directory %s\n\n" "$repo_dir"
+    rmdir "$repo_dir"
+}
+
+# Use a template matrix file for Pharo 7 8 9
+write_matrix_file () {
+    local repo_fullpath="$1"
+
+    printf "Generating matrix file %s\n\n" "$repo_fullpath"
+    cp -v pharo_ci_template.yml "$repo_fullpath"
+}
+
+walk_dirs () {
+    # List only directories options
+    # Allows  patterns which match no files
+    shopt -s nullglob
+    # Includes filenames beginning with a `.' in the results of pathname expansion
+    shopt -s dotglob
+
+    local new_repo_file="cimatrix.yml"
+    local repo_dir_list=("$1"/*/)
+    local op="$2"
+
+    for repo_dir in "${repo_dir_list[@]}"; do
+        workflows_dir="$repo_dir".github/workflows
+        printf "Processing %s...\n" "${repo_dir}"
+        if [[ ! -d "${workflows_dir}" ]]; then
+            printf "%s directory does not exist. Creating it...\n" "$workflows_dir"
+            mkdir -p "$repo_dir"/.github/workflows
+            if [[ "$op" == "generate" ]]; then
+                write_matrix_file "$workflows_dir/$new_repo_file"
+            fi
+        else
+            printf "%s directory exists.\n" "$workflows_dir"        
+            if [[ "$op" == "clean" ]]; then
+                delete_matrix_file "$workflows_dir/$new_repo_file"
+                delete_matrix_directory "$workflows_dir"
+            fi
+        fi 
+    done
+}
+
+print_help () {
+    printf "\ncreate_matrix - Create a GitHub Action CI matrix files (.yml) for Pharo 7, 8 and 9 for your organization repositories\n[version %s - %s]\n" "0.1" "25/01/2020"
+    printf "\nUsage:\n"
+    printf "./create_matrix <working_directory> [clean]\n"
+}
+
+parseCmdLine () {
+    [[ $# -eq 0 ]] && { print_help; exit 1; }
+
+    [[ $# -eq 1 ]] && { local work_dir=$1; walk_dirs "$work_dir" "generate"; }
+
+	[[ $# -eq 2 ]] && { local work_dir=$1; walk_dirs "$work_dir" "clean"; }
+}
+
+parseCmdLine "$@"
